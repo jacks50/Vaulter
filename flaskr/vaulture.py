@@ -3,7 +3,7 @@ from flask import (Blueprint, request, render_template, flash)
 vaulture_bp = Blueprint('vaulture', __name__, url_prefix='/vaulture')
 
 @vaulture_bp.route('/file', methods=['GET', 'POST'])
-def vaulturefile_get():
+def vaulture_fileget():
     if request.method == 'POST':
         filename = request.form['filename']
 
@@ -16,16 +16,16 @@ def vaulturefile_get():
     return render_template('vaulture_fileget.html')
 
 @vaulture_bp.route('/file/upload', methods=['GET', 'POST'])
-def vaulturefile_upload():
+def vaulture_fileupload():
     if request.method == 'POST':
         pass
 
     return render_template('vaulture_fileupload.html')
 
 @vaulture_bp.route('/file/create', methods=['GET', 'POST'])
-def vaulturefile_create():
-    pass
+def vaulture_filecreate():
+    return render_template('vaulture_filecreate.html')
 
-@vaulture_bp.route('/admin', methods=['GET'])
-def vaulturefile_admin():
-    pass
+@vaulture_bp.route('/file/list', methods=['GET'])
+def vaulture_filelist():
+    return render_template('vaulture_filelist.html')
