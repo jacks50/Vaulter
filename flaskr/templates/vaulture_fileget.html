@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+
+{% block header %}
+    <h1>Enter the name of the .vault file to retrieve</h1>
+{% endblock %}
+
+{% block body %}
+<form method="post">
+    <label for="filename">Name of .vault file</label>
+    <input name="filename" id="filename" value="{{ request.form['filename'] }}" required>
+    <input type="submit" value="Retrieve file">
+</form>
+
+<a class="action" href="/">Return to Home</a>
+{% endblock %}

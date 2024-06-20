@@ -1,19 +1,31 @@
-from flask import (Blueprint)
+from flask import (Blueprint, request, render_template, flash)
 
-bp = Blueprint('vaulture', __name__, url_prefix='/vaulture')
+vaulture_bp = Blueprint('vaulture', __name__, url_prefix='/vaulture')
 
-@bp.get('/file/<filename>')
-def vaulturefile_get(filename):
-    pass
+@vaulture_bp.route('/file', methods=['GET', 'POST'])
+def vaulturefile_get():
+    if request.method == 'POST':
+        filename = request.form['filename']
 
-@bp.post('/file')
-def vaulturefile_post():
-    pass
+        if not filename:
+            flash('Please enter the name of the .vault file to retrieve')
+            return
 
-@bp.put('/file')
+        return render_template('')
+
+    return render_template('vaulture_fileget.html')
+
+@vaulture_bp.route('/file/upload', methods=['GET', 'POST'])
+def vaulturefile_upload():
+    if request.method == 'POST':
+        pass
+
+    return render_template('vaulture_fileupload.html')
+
+@vaulture_bp.route('/file/create', methods=['GET', 'POST'])
 def vaulturefile_create():
     pass
 
-@bp.get('/admin')
+@vaulture_bp.route('/admin', methods=['GET'])
 def vaulturefile_admin():
     pass

@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+
+{% block body %}
+    <div>
+        <a class="action" href="{{ url_for('vaulture.vaulturefile_get') }}">Retrieve a file</a>
+        <a class="action" href="{{ url_for('vaulture.vaulturefile_get') }}">Upload a new file</a>
+        <a class="action" href="{{ url_for('vaulture.vaulturefile_get') }}">List files saved</a>
+    </div>
+{% endblock %}

@@ -1,4 +1,4 @@
-FROM python:3.10.14-alpine
+FROM python:3.8-slim
 
 WORKDIR /app
 
@@ -8,4 +8,6 @@ RUN pip3 install -r requirements.txt
 
 COPY . /app
 
-CMD ["python3", "-m", "flask", "run", "--host=0.0.0.0"]
+CMD ["python3", "-m", "flask", "--app", "flaskr", "run", "--host=0.0.0.0"]
+
+EXPOSE 5000
