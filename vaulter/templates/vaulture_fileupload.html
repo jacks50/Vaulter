@@ -5,7 +5,7 @@
 {% endblock %}
 
 {% block body %}
-<form method="post">
+<form method="post" enctype="multipart/form-data">
     <label for="vault_file">Select a .vault file</label>
     <input type="file" name="vault_file" id="vault_file" accept=".vault" required>
     <input type="submit" value="Upload file">

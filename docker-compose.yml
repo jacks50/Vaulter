@@ -2,7 +2,7 @@ services:
   app:
     image: vaulter:latest
     build: .
-    command: python3 -m flask --app flaskr --debug run --host=0.0.0.0
+    command: python3 -m flask --app vaulter --debug run --host=0.0.0.0
     ports:
       - 5000:5000
     volumes:

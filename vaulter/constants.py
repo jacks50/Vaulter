@@ -1,3 +1,8 @@
+UPLOAD_FOLDER = 'vault_storage'
+MAX_CONTENT_LENGTH = 16 * 1000 * 1000
+
+ALLOWED_EXTENSIONS = ['vault']
+
 LEFT_SIDE_FILENAME = [
     "admiring",
     "adoring",

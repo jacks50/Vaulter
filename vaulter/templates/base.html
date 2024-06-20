@@ -14,6 +14,14 @@
     <body>
         {% block body %}
         {% endblock %}
+
+        {% with messages=get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for categ, message in messages %}
+                    <p>{{ categ }} : {{ message }}</p>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
     </body>
 
 </html>
