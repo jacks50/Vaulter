@@ -2,7 +2,7 @@ import random
 import os
 
 from .constants import LEFT_SIDE_FILENAME, RIGHT_SIDE_FILENAME, ALLOWED_EXTENSIONS
-from flask import current_app, flash
+from flask import current_app
 from werkzeug.utils import secure_filename
 
 

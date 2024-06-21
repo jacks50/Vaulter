@@ -1,4 +1,6 @@
-from flask import (Blueprint, request, render_template, flash, redirect)
+import os.path
+
+from flask import (Blueprint, request, render_template, flash, redirect, send_from_directory, current_app)
 from .utils import file_is_allowed, filename_exists, file_save
 
 vaulture_bp = Blueprint('vaulture', __name__, url_prefix='/vaulture')
@@ -41,7 +43,21 @@ def vaulture_fileupload():
 
 @vaulture_bp.route('/file/create', methods=['GET', 'POST'])
 def vaulture_filecreate():
-    return render_template('vaulture_filecreate.html')
+    root_dir = os.path.dirname(os.getcwd())
+    upload_dir = os.path.join(root_dir, current_app.config['UPLOAD_FOLDER'])
+
+    print(upload_dir)
+
+    try:
+        response = send_from_directory(upload_dir, 'test.vault', as_attachment=True)
+    except Exception as ex:
+        print(ex)
+        return render_template('vaulture_filecreate.html')
+
+    print(response)
+
+    return response
+    #return render_template('vaulture_filecreate.html')
 
 @vaulture_bp.route('/file/list', methods=['GET'])
 def vaulture_filelist():
