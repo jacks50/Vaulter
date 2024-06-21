@@ -1,8 +1,5 @@
-import os
-
-from flask import (Blueprint, request, render_template, flash, redirect, current_app)
+from flask import (Blueprint, request, render_template, flash, redirect)
 from .utils import file_is_allowed, filename_exists, file_save
-from werkzeug.utils import secure_filename
 
 vaulture_bp = Blueprint('vaulture', __name__, url_prefix='/vaulture')
 
@@ -14,8 +11,6 @@ def vaulture_fileget():
         if not filename:
             flash('Please enter the name of the .vault file to retrieve', category='error')
             return
-
-        return render_template('')
 
     return render_template('vaulture_fileget.html')
 
