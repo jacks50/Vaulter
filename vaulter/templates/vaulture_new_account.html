@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+
+{% block header %}
+
+{% endblock %}
+
+{% block body %}
+    <h1>New account page</h1>
+
+    <form method="post" enctype="multipart/form-data">
+        <label for="vault_file">Select a .vault file</label>
+        <input type="file" name="vault_file" id="vault_file" accept=".vault" required>
+        <input type="submit" value="Upload file">
+    </form>
+
+    {% if otpurl %}
+        <img src="https://quickchart.io/qr?size=250&text={{ otpurl }}"/>
+    {% endif %}
+
+    <a class="action" href="/">Return to Home</a>
+{% endblock %}

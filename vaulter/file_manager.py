@@ -33,7 +33,7 @@ class FileManagerInterface(metaclass=abc.ABCMeta):
         return cls.instance
 
     @abc.abstractmethod
-    def file_create(self, file_name, file_content, file_path):
+    def file_create(self, file, file_path, create_dirs=False):
         """
         Creates a file in the designed storage used
         :return:
@@ -75,21 +75,31 @@ class FileManagerInterface(metaclass=abc.ABCMeta):
 
 class InternalFileManager(FileManagerInterface):
 
-    def _check_dir_file_exists(self, file_name, file_path):
+    def _check_dir_file_exists(self, file_name, file_path, create_dirs=False):
         file_dir = Path(file_path)
+
+        print('1', file_dir)
+
+        if create_dirs:
+            if file_dir.exists():
+                raise FileExistsError
+            
+            file_dir.mkdir(parents=True)
 
         if not (file_dir.exists() or file_dir.is_dir()):
             raise FileNotFoundError
 
         file_complete_path = file_dir / file_name
 
-        if file_complete_path.exists() or not file_complete_path.is_file():
+        print('2', file_complete_path)
+
+        if file_complete_path.exists():
             raise FileExistsError
 
         return file_complete_path
 
-    def file_create(self, file_name, file_content, file_path):
-        file_complete_path = self._check_dir_file_exists(file_name, file_path)
+    def file_create(self, file, file_path, create_dirs=False):
+        file_complete_path = self._check_dir_file_exists(file, file_path, create_dirs=create_dirs)
 
         file_complete_path.touch()
 
@@ -117,14 +127,14 @@ class InternalFileManager(FileManagerInterface):
 
     def file_list(self, file_path):
 
-        for file in Path(file_path).iterdir():
+        #for file in Path(file_path).iterdir():
 
         pass
 
 
 class PostgresFileManager(FileManagerInterface):
 
-    def file_create(self, file_name, file_content, file_path):
+    def file_create(self, file, file_path, create_dirs=False):
         pass
 
     def file_get(self, file_name, file_path):
@@ -142,7 +152,7 @@ class PostgresFileManager(FileManagerInterface):
 
 class S3FileManager(FileManagerInterface):
 
-    def file_create(self, file_name, file_content, file_path):
+    def file_create(self, file, file_path, create_dirs=False):
         pass
 
     def file_get(self, file_name, file_path):
