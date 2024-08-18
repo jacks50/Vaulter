@@ -2,175 +2,178 @@ import logging
 import traceback
 import urllib.parse
 
-from flask import (Blueprint, request, render_template, flash, redirect, send_from_directory, current_app)
+from flask import (Blueprint, request, render_template, current_app, jsonify)
 from pathlib import Path
-from werkzeug.utils import secure_filename
 
 from .file_manager import get_file_manager
-from .tfa import generate_otpauth_url, generate_secret_key, tfa_valid
+from .utils import valid_filename, generate_otpauth_url, generate_secret_key, tfa_valid
 
 _logger = logging.getLogger(__name__)
 
 vaulture_bp = Blueprint('vaulture', __name__, url_prefix='/vaulture')
 
-@vaulture_bp.route('/new_account', methods=['GET', 'POST'])
-def vaulture_new_account():
-    # get the file manager related to env
-    filemanager = get_file_manager()
-    TMP_FOLDER = Path('tmp_vaults')
-    UPLOAD_FOLDER = Path(current_app.config["UPLOAD_FOLDER"])
+filemanager = get_file_manager()
 
+@vaulture_bp.route('/new_account', methods=['POST'])
+def vaulture_new_account():
     if request.method == 'POST':
         try:
-            new_account_file = request.files.get('vault_file', False)
-            new_account_otp_code = request.form.get('otp_code', False)
+            vault_file = request.files.get('vault_file', False)
+            otp_code = request.form.get('otp_code', False)
 
-            # TODO : refactor this -> use Flask forms, correct fields, and also login decorators - not secured at all !!!
-            if new_account_otp_code:
-                # this is crap, used only for testing but an user could bypass this easily
-                new_account_name = request.form['new_account_name']
+            if vault_file:
+                # First step : If a new file is received, we need to create paths accordingly
+                #  and setup OTP keys
 
-                key_files = sorted((TMP_FOLDER / UPLOAD_FOLDER / Path(new_account_name)).glob('*.key'))
+                # check validity of filename and retrieve account name from it
+                vault_file_filename = valid_filename(vault_file)
+                vault_account_name = vault_file_filename.rsplit('.', 1)[0]
 
-                if not any(key_files):
-                    raise Exception("NoKey")
-                
-                otp_key = key_files[0].stem
-
-                if not tfa_valid(otp_key, new_account_otp_code):
-                    raise FileNotFoundError("NotValid")
-                
-                tmp_account_folder = TMP_FOLDER / UPLOAD_FOLDER / Path(new_account_name)
-
-                tmp_account_folder.rename(UPLOAD_FOLDER / Path(new_account_name))
-
-                return render_template('vaulture_new_account.html', success=True)
-            else:
-                new_account_filename = secure_filename(new_account_file.filename)
-                new_account_name = new_account_filename.rsplit('.', 1)[0]
-                new_account_otp_key = generate_secret_key()
+                # generate OTP key
+                vault_account_otp_key = generate_secret_key()
 
                 # get final path that will host required files
-                folder_path = TMP_FOLDER / UPLOAD_FOLDER / Path(new_account_name)
-
-                # create /tmp_vaults/UPLOAD_FOLDER/vault_filename
-                filemanager.create_dir(folder_path)
+                folder_path = filemanager.TMP_PATH / filemanager.UPLOAD_PATH / Path(vault_account_name)
 
                 # create /tmp_vaults/UPLOAD_FOLDER/vault_filename/vault_filename.vault
-                filemanager.create(folder_path / Path(new_account_file.filename))
+                filemanager.create(folder_path / Path(vault_file_filename))
 
                 # write content of file
-                filemanager.write(folder_path / Path(new_account_file.filename), new_account_file.read())
+                filemanager.write(folder_path / Path(vault_file_filename), vault_file.read())
 
                 # create /tmp_vaults/UPLOAD_FOLDER/vault_filename/vault_filename.vault.key
-                filemanager.create(folder_path / Path(f'{new_account_otp_key}.key'))
+                filemanager.create(folder_path / Path(f'{vault_account_otp_key}.key'))
 
                 # generate OTP url to be scannable and display it on page
-                otp_url = generate_otpauth_url(secret_key=new_account_otp_key, username=new_account_name)
+                otp_url = generate_otpauth_url(secret_key=vault_account_otp_key, username=vault_account_name)
 
-                return render_template('vaulture_new_account.html', 
-                                       otpurl=urllib.parse.quote(otp_url),
-                                       new_account_name=new_account_name)
-        except FileExistsError as fer:
+                return jsonify({
+                    'otp_url': urllib.parse.quote(otp_url),
+                    'vault_account_name': vault_account_name,
+                })                
+            elif otp_code:
+                # Second step : A code is received, so a path must be already created and we
+                #  need to check now that the code is valid from the key generated
+                vault_account_name = request.form['vault_account_name']
+                account_name_path = Path(vault_account_name)
+
+                # check that a .key file is present in directory of the account to be created
+                key_files = sorted((filemanager.TMP_PATH / filemanager.UPLOAD_PATH / account_name_path).glob('*.key'))
+
+                if not any(key_files):
+                    _logger.error(f'No key found in folder for account {vault_account_name}')
+                    raise Exception('KeyError')
+                
+                # get the stem of the file key found
+                otp_key = key_files[0].stem
+
+                if not tfa_valid(otp_key, otp_code):
+                    _logger.error('Invalid OTP code provided')
+                    raise Exception('KeyError')
+                
+                # get full path of account to be created and move it into folder of created accounts
+                tmp_account_folder = filemanager.TMP_PATH / filemanager.UPLOAD_PATH / account_name_path
+
+                filemanager.move(tmp_account_folder, filemanager.UPLOAD_PATH / account_name_path)
+                
+                return f'Your account "{vault_account_name}" has been succesfully created', 200
+            else:
+            # In this case, body is missing values -> Error
+                raise Exception()
+        except FileExistsError:
             _logger.error(traceback.format_exc())
-            return "Username already exists", 409
-        except Exception as exc:
+            return 'Username already exists', 400
+        except Exception:
             _logger.error(traceback.format_exc())
-            return "An error occurred", 400
+            return 'An error occurred', 400
 
-    return render_template('vaulture_new_account.html')
+    return 'Bad option', 400
 
-@vaulture_bp.route('/file', methods=['GET', 'POST'])
-def vaulture_fileget():
-    # get the file manager related to env
-    filemanager = get_file_manager()
-    TMP_FOLDER = Path('tmp_vaults')
-    UPLOAD_FOLDER = Path(current_app.config["UPLOAD_FOLDER"])
-
+@vaulture_bp.route('/login', methods=['POST'])
+def vaulture_login():
     if request.method == 'POST':
         try:
-            account_name = request.form['filename']
-            account_tfa = request.form['tfa_code']
+            vault_account_name = request.form['vault_account_name']
+            otp_code = request.form['otp_code']
 
-            if not filemanager.exists(UPLOAD_FOLDER / Path(account_name).stem):
-                raise FileNotFoundError("NotFound")
+            vault_account_path = Path(vault_account_name)
+
+            if not filemanager.exists(filemanager.UPLOAD_PATH / vault_account_path):
+                _logger.error(f'Trying to access non-existing account folder : {vault_account_name}')
+                raise FileNotFoundError()
             
-            key_files = sorted((UPLOAD_FOLDER / Path(account_name).stem).glob('*.key'))
+            key_files = sorted((filemanager.UPLOAD_PATH / vault_account_path).glob('*.key'))
 
             if not any(key_files):
-                raise FileNotFoundError("NoKey")
+                _logger.error(f'Account does not contain an OTP key : {vault_account_name}')
+                raise FileNotFoundError()
             
             otp_key = key_files[0].stem
 
-            if not tfa_valid(otp_key, account_tfa):
-                raise FileNotFoundError("NotValid")
-
-            return render_template('vaulture_fileget.html', 
-                                   content=filemanager.read(UPLOAD_FOLDER / Path(account_name).stem / Path(account_name)).decode("utf-8"))
-        except FileNotFoundError as fnfe:
+            if not tfa_valid(otp_key, otp_code):
+                _logger.error(f'Invalid OTP code provided for account : {vault_account_name}')
+                raise FileNotFoundError()
+            
+            vault_file_content = filemanager.read(
+                filemanager.UPLOAD_PATH / vault_account_path / vault_account_path.with_suffix('.vault')
+            ).decode('utf-8')
+            
+            return jsonify({
+                'content': vault_file_content,
+            })
+        except FileNotFoundError:
             _logger.error(traceback.format_exc())
-            return "Username does not exist", 400
-        except Exception as exc:
+            return 'Username does not exist', 404
+        except Exception:
             _logger.error(traceback.format_exc())
-            return "An error occurred", 400
+            return 'An error occurred', 400
 
-    return render_template('vaulture_fileget.html')
+    return 'Bad option', 400
 
-@vaulture_bp.route('/file/upload', methods=['GET', 'POST'])
-def vaulture_fileupload():
-    """
+@vaulture_bp.route('/update', methods=['POST'])
+def vaulture_update():
     if request.method == 'POST':
-        if 'vault_file' not in request.files:
-            flash('No vault file provided', category='error')
-            return redirect(request.url)
-
-        file = request.files['vault_file']
-
-        if not file_is_allowed(file) or filename_exists(file):
-            flash('Selected file is invalid, please check the file and its extension', category='error')
-            return redirect(request.url)
-
         try:
-            filename = file_save(file)
-        except FileExistsError:
-            flash('An error occured while uploading the file, try again later', category='error')
-            return redirect(request.url)
+            vault_account_name = request.form['vault_account_name']
+            otp_code = request.form['otp_code']
+            vault_file_content = request.form['vault_file_content']
 
-        flash(f'File {filename} successfully uploaded !', category='success')
+            vault_account_path = Path(vault_account_name)
 
-        return render_template('vaulture_fileupload.html')
+            if not filemanager.exists(filemanager.UPLOAD_PATH / vault_account_path):
+                _logger.error(f'Trying to access non-existing account folder : {vault_account_name}')
+                raise FileNotFoundError()
+            
+            key_files = sorted((filemanager.UPLOAD_PATH / vault_account_path).glob('*.key'))
 
-    return render_template('vaulture_fileupload.html')
-    """
-    return NotImplementedError
+            if not any(key_files):
+                _logger.error(f'Account does not contain an OTP key : {vault_account_name}')
+                raise FileNotFoundError()
+            
+            otp_key = key_files[0].stem
 
-@vaulture_bp.route('/file/create', methods=['GET', 'POST'])
-def vaulture_filecreate():
-    """
-    root_dir = os.path.dirname(os.getcwd())
-    upload_dir = os.path.join(root_dir, current_app.config['UPLOAD_FOLDER'])
+            if not tfa_valid(otp_key, otp_code):
+                _logger.error(f'Invalid OTP code provided for account : {vault_account_name}')
+                raise FileNotFoundError()
+            
+            vault_file_path = filemanager.UPLOAD_PATH / vault_account_path / vault_account_path.with_suffix('.vault')
 
-    _logger.error(upload_dir)
+            vault_file_path.write_bytes(vault_file_content)
+            
+            return 'Update done', 200
+        except FileNotFoundError:
+            _logger.error(traceback.format_exc())
+            return 'Username does not exist', 404
+        except Exception:
+            _logger.error(traceback.format_exc())
+            return 'An error occurred', 400
 
-    try:
-        response = send_from_directory(upload_dir, 'test.vault', as_attachment=True)
-    except Exception as ex:
-        _logger.error(ex)
-        return render_template('vaulture_filecreate.html')
+    return 'Bad option', 400
 
-    _logger.error(response)
+@vaulture_bp.route('/delete', methods=['POST'])
+def vaulture_delete():
+    raise NotImplementedError()
 
-    return response
-    #return render_template('vaulture_filecreate.html')
-    """
-    return NotImplementedError
-
-@vaulture_bp.route('/file/list', methods=['GET'])
-def vaulture_filelist():
-    # get the file manager related to env
-    filemanager = get_file_manager()
-    TMP_FOLDER = Path('tmp_vaults')
-    UPLOAD_FOLDER = Path(current_app.config["UPLOAD_FOLDER"])
-
-    return render_template('vaulture_filelist.html',
-                            content=filemanager.list(UPLOAD_FOLDER))
+@vaulture_bp.route('/admin', methods=['GET'])
+def vaulture_list():
+    raise NotImplementedError()
