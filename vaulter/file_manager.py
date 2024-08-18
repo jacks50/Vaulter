@@ -1,21 +1,26 @@
 import abc
-import os
+import boto3
+import logging
+import traceback
 
+from botocore.exceptions import ClientError
 from datetime import datetime
-from flask import current_app
+from flask import current_app, Flask
 from pathlib import Path
-from typing import Union
+
+_logger = logging.getLogger(__name__)
 
 
 def get_file_manager():
-    if current_app.config['STORAGE_URI'] == 'local':
-        return InternalFileManager()
-    elif current_app.config['STORAGE_URI'] == 'S3':
-        return S3FileManager()
-    elif current_app.config['STORAGE_URI'] == 'DB':
-        return PostgresFileManager()
-    else:
-        raise ValueError
+    with current_app.app_context():
+        if current_app.config['STORAGE_URI'] == 'local':
+            return InternalFileManager(current_app)
+        elif current_app.config['STORAGE_URI'] == 'S3':
+            return S3FileManager(current_app)
+        elif current_app.config['STORAGE_URI'] == 'DB':
+            return PostgresFileManager(current_app)
+        else:
+            raise ValueError
 
 class FileManagerInterface(metaclass=abc.ABCMeta):
     @classmethod
@@ -26,6 +31,7 @@ class FileManagerInterface(metaclass=abc.ABCMeta):
             hasattr(__subclass, 'write') and callable(__subclass.write) and
             hasattr(__subclass, 'delete') and callable(__subclass.delete) and
             hasattr(__subclass, 'read') and callable(__subclass.read) and
+            hasattr(__subclass, 'move') and callable(__subclass.move) and
             hasattr(__subclass, 'list') and callable(__subclass.list) or
             NotImplemented
         )
@@ -35,16 +41,16 @@ class FileManagerInterface(metaclass=abc.ABCMeta):
             cls.instance = super(FileManagerInterface, cls).__new__(cls)
         return cls.instance
     
+    def __init__(self, app: Flask) -> None:
+        self.TMP_PATH = Path(app.config['TMP_FOLDER'])
+        self.UPLOAD_PATH = Path(app.config['UPLOAD_FOLDER'])
+    
     @abc.abstractmethod
     def exists(self, path: Path) -> bool:
         raise NotImplementedError
     
     @abc.abstractmethod
     def create(self, path: Path) -> bool:
-        raise NotImplementedError
-    
-    @abc.abstractmethod
-    def create_dir(self, path: Path, recursive: bool=True) -> bool:
         raise NotImplementedError
     
     @abc.abstractmethod
@@ -56,11 +62,11 @@ class FileManagerInterface(metaclass=abc.ABCMeta):
         raise NotImplementedError
     
     @abc.abstractmethod
-    def delete_dir(self, path: Path) -> bool:
+    def read(self, path: Path) -> bytes:
         raise NotImplementedError
     
     @abc.abstractmethod
-    def read(self, path: Path) -> bytes:
+    def move(self, path: Path, destination: Path) -> bool:
         raise NotImplementedError
     
     @abc.abstractmethod
@@ -69,23 +75,15 @@ class FileManagerInterface(metaclass=abc.ABCMeta):
 
 
 class InternalFileManager(FileManagerInterface):
-    def __init__(self) -> None:
-        # init folders here CORRECTLY
-        Path('tmp_vaults').mkdir(exist_ok=True)
-        Path('vault_storage').mkdir(exist_ok=True)
-
-        super(InternalFileManager, self).__init__()
+    def __init__(self, app: Flask) -> None:
+        super(InternalFileManager, self).__init__(app)
 
     def exists(self, path: Path) -> bool:
         return path.exists()
     
     def create(self, path: Path) -> bool:
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.touch()
-
-        return True
-    
-    def create_dir(self, path: Path, recursive: bool=True) -> bool:
-        path.mkdir(parents=recursive)
 
         return True
     
@@ -95,17 +93,20 @@ class InternalFileManager(FileManagerInterface):
         return True
     
     def delete(self, path: Path) -> bool:
-        path.unlink(missing_ok=True)
+        if path.is_file():
+            path.unlink(missing_ok=True)
+        elif path.is_dir():
+            path.rmdir()
         
-        return True
-    
-    def delete_dir(self, path: Path) -> bool:
-        path.rmdir()
-
         return True
     
     def read(self, path: Path) -> bytes:
         return path.read_bytes()
+    
+    def move(self, path: Path, destination: Path) -> bool:
+        path.rename(destination)
+
+        return True
     
     def list(self, path: Path) -> list:
         return [f'{child.name} ({child.stat().st_size}B) - Last edit : {datetime.fromtimestamp(child.stat().st_mtime)}'
@@ -113,13 +114,13 @@ class InternalFileManager(FileManagerInterface):
 
 
 class PostgresFileManager(FileManagerInterface):
+    def __init__(self, app: Flask) -> None:
+        super(PostgresFileManager, self).__init__(app)
+
     def exists(self, path: Path) -> bool:
         raise NotImplementedError
     
     def create(self, path: Path) -> bool:
-        raise NotImplementedError
-    
-    def create_dir(self, path: Path, recursive: bool=True) -> bool:
         raise NotImplementedError
     
     def write(self, path: Path, content:bytes) -> bool:
@@ -128,10 +129,10 @@ class PostgresFileManager(FileManagerInterface):
     def delete(self, path: Path) -> bool:
         raise NotImplementedError
     
-    def delete_dir(self, path: Path) -> bool:
+    def read(self, path: Path) -> bytes:
         raise NotImplementedError
     
-    def read(self, path: Path) -> bytes:
+    def move(self, path: Path, destination: Path) -> bool:
         raise NotImplementedError
     
     def list(self, path: Path) -> list:

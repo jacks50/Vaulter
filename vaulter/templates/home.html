@@ -2,9 +2,8 @@
 
 {% block body %}
     <div>
-        <a class="action" href="{{ url_for('vaulture.vaulture_fileget') }}">Retrieve a file</a>
-        <a class="action" href="{{ url_for('vaulture.vaulture_fileupload') }}">Upload a new file</a>
-        <a class="action" href="{{ url_for('vaulture.vaulture_filelist') }}">List files saved</a>
+        <a class="action" href="{{ url_for('vaulture.vaulture_login') }}">Login</a>
+        <a class="action" href="{{ url_for('vaulture.vaulture_list') }}">List files saved</a>
         <a class="action" href="{{ url_for('vaulture.vaulture_new_account') }}">New account</a>
     </div>
 {% endblock %}
