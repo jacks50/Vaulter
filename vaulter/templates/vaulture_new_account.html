@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+{% block header %}
+
+{% endblock %}
+
+{% block body %}
+    <h1>New account page</h1>
+
+    {% if success %}
+        <h2>Account created !!! OMG LOLOL</h2>
+    {% elif otpurl %}
+        <form method="post" enctype="multipart/form-data">
+            <img src="https://quickchart.io/qr?size=250&text={{ otpurl }}"/>
+
+            <label for="otp_code">Enter the code of your authenticator</label>
+            <input type="number" name="otp_code" id="otp_code" required>
+            <input type="text" name="new_account_name" id="new_account_name" value="{{ new_account_name }}" hidden>
+            <input type="submit" value="Validate code">
+        </form>
+    {% else %}
+        <form method="post" enctype="multipart/form-data">
+            <label for="vault_file">Select a .vault file</label>
+            <input type="file" name="vault_file" id="vault_file" accept=".vault" required>
+            <input type="submit" value="Upload file">
+        </form>
+    {% endif %}
+
+    <a class="action" href="/">Return to Home</a>
+{% endblock %}

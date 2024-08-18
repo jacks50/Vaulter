@@ -8,7 +8,15 @@
 <form method="post">
     <label for="filename">Name of .vault file</label>
     <input name="filename" id="filename" value="{{ request.form['filename'] }}" required>
+
+    <label for="tfa_code">2FA code</label>
+    <input name="tfa_code" id="tfa_code" value="{{ request.form['tfa_code'] }}" required>
+
     <input type="submit" value="Retrieve file">
+
+    {% if content %}
+        <p>{{ content }}</p>
+    {% endif %}
 </form>
 
 <a class="action" href="/">Return to Home</a>
