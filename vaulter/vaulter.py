@@ -2,7 +2,7 @@ import logging
 import traceback
 import urllib.parse
 
-from flask import (Blueprint, request, render_template, current_app, jsonify)
+from flask import (Blueprint, request, jsonify)
 from pathlib import Path
 
 from .file_manager import get_file_manager
@@ -33,16 +33,20 @@ def vaulture_new_account():
                 vault_account_otp_key = generate_secret_key()
 
                 # get final path that will host required files
-                folder_path = filemanager.TMP_PATH / filemanager.UPLOAD_PATH / Path(vault_account_name)
+                tmp_folder_path = filemanager.TMP_PATH / Path(vault_account_name)
+
+                # if an account with this name already exists, raise
+                if filemanager.exists(tmp_folder_path) or filemanager.exists(filemanager.UPLOAD_PATH / Path(vault_account_name)):
+                    raise FileExistsError()
 
                 # create /tmp_vaults/UPLOAD_FOLDER/vault_filename/vault_filename.vault
-                filemanager.create(folder_path / Path(vault_file_filename))
+                filemanager.create(tmp_folder_path / Path(vault_file_filename))
 
                 # write content of file
-                filemanager.write(folder_path / Path(vault_file_filename), vault_file.read())
+                filemanager.write(tmp_folder_path / Path(vault_file_filename), vault_file.read())
 
                 # create /tmp_vaults/UPLOAD_FOLDER/vault_filename/vault_filename.vault.key
-                filemanager.create(folder_path / Path(f'{vault_account_otp_key}.key'))
+                filemanager.create(tmp_folder_path / Path(f'{vault_account_otp_key}.key'))
 
                 # generate OTP url to be scannable and display it on page
                 otp_url = generate_otpauth_url(secret_key=vault_account_otp_key, username=vault_account_name)
@@ -72,7 +76,7 @@ def vaulture_new_account():
                     raise Exception('KeyError')
                 
                 # get full path of account to be created and move it into folder of created accounts
-                tmp_account_folder = filemanager.TMP_PATH / filemanager.UPLOAD_PATH / account_name_path
+                tmp_account_folder = filemanager.TMP_PATH / account_name_path
 
                 filemanager.move(tmp_account_folder, filemanager.UPLOAD_PATH / account_name_path)
                 
