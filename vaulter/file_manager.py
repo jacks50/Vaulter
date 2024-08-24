@@ -118,8 +118,8 @@ class InternalFileManager(FileManagerInterface):
         return True
     
     def list(self, path: Path) -> list:
-        return [f'{child.name} ({child.stat().st_size}B) 
-                - Last edit : {datetime.fromtimestamp(child.stat().st_mtime)}'
+        return [(f'{child.name} ({child.stat().st_size}B) '
+                f'- Last edit : {datetime.fromtimestamp(child.stat().st_mtime)}')
                 for child in path.iterdir()]
 
 
@@ -215,8 +215,8 @@ class S3FileManager(FileManagerInterface):
                 bucket_object_data = bucket_object.get()
 
                 object_list.append(
-                    f'{bucket_object.key} ({bucket_object_data.get("ContentLength")}B) 
-                    - Last edit : {bucket_object_data.get("LastModified")}'
+                    f'{bucket_object.key} ({bucket_object_data.get("ContentLength")}B) '
+                    f'- Last edit : {bucket_object_data.get("LastModified")}'
                 )
 
             return object_list
