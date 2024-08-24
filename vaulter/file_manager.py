@@ -1,12 +1,21 @@
 import abc
 import boto3
 import logging
+import os
 import traceback
 
+import boto3.session
 from botocore.exceptions import ClientError
 from datetime import datetime
 from flask import current_app, Flask
 from pathlib import Path
+
+from .constants import (
+    DEFAULT_STORAGE_ACCESS_KEY_ID, 
+    DEFAULT_STORAGE_BUCKET, 
+    DEFAULT_STORAGE_REGION, 
+    DEFAULT_STORAGE_SECRET_ACCESS_KEY
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -109,7 +118,8 @@ class InternalFileManager(FileManagerInterface):
         return True
     
     def list(self, path: Path) -> list:
-        return [f'{child.name} ({child.stat().st_size}B) - Last edit : {datetime.fromtimestamp(child.stat().st_mtime)}'
+        return [f'{child.name} ({child.stat().st_size}B) 
+                - Last edit : {datetime.fromtimestamp(child.stat().st_mtime)}'
                 for child in path.iterdir()]
 
 
@@ -140,26 +150,76 @@ class PostgresFileManager(FileManagerInterface):
 
 
 class S3FileManager(FileManagerInterface):
+    def __init__(self, app: Flask) -> None:
+        super(S3FileManager, self).__init__(app)
+
+        try:
+            s3_session = boto3.session.Session(
+                aws_access_key_id=os.environ.get(DEFAULT_STORAGE_ACCESS_KEY_ID),
+                aws_secret_access_key=os.environ.get(DEFAULT_STORAGE_SECRET_ACCESS_KEY),
+                region_name=os.environ.get(DEFAULT_STORAGE_REGION),
+            )
+
+            self.s3_client = s3_session.resource('s3')
+            self.s3_bucket = self.s3_client.Bucket(os.environ.get(DEFAULT_STORAGE_BUCKET))
+        except ClientError:
+            _logger.error(traceback.format_exc())
+
     def exists(self, path: Path) -> bool:
-        raise NotImplementedError
+        try:
+            return self.s3_bucket.Object(Key=path).load()
+        except ClientError:
+            _logger.error(traceback.format_exc())
+            raise
     
     def create(self, path: Path) -> bool:
-        raise NotImplementedError
-    
-    def create_dir(self, path: Path, recursive: bool=True) -> bool:
-        raise NotImplementedError
+        return self.write(path, b'')
     
     def write(self, path: Path, content:bytes) -> bool:
-        raise NotImplementedError
+        try:
+            self.s3_bucket.put_object(Key=path, Body=content)
+
+            return True
+        except ClientError:
+            _logger.error(traceback.format_exc())
+            raise
     
     def delete(self, path: Path) -> bool:
-        raise NotImplementedError
-    
-    def delete_dir(self, path: Path) -> bool:
-        raise NotImplementedError
+        try:
+            self.s3_bucket.Object(Key=path).delete()
+
+            return True
+        except ClientError:
+            _logger.error(traceback.format_exc())
+            raise
     
     def read(self, path: Path) -> bytes:
-        raise NotImplementedError
+        try:
+            return self.s3_bucket.Object(Key=path).get().get('Body', b'').read()
+        except ClientError:
+            _logger.error(traceback.format_exc())
+            raise
+    
+    def move(self, path: Path, destination: Path) -> bool:
+        try:
+            return False
+        except ClientError:
+            _logger.error(traceback.format_exc())
+            raise
     
     def list(self, path: Path) -> list:
-        raise NotImplementedError
+        try:
+            object_list = []
+
+            for bucket_object in self.s3_bucket.objects.all():
+                bucket_object_data = bucket_object.get()
+
+                object_list.append(
+                    f'{bucket_object.key} ({bucket_object_data.get("ContentLength")}B) 
+                    - Last edit : {bucket_object_data.get("LastModified")}'
+                )
+
+            return object_list
+        except ClientError:
+            _logger.error(traceback.format_exc())
+            raise
