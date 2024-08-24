@@ -12,10 +12,11 @@ _logger = logging.getLogger(__name__)
 
 vaulture_bp = Blueprint('vaulture', __name__, url_prefix='/vaulture')
 
-filemanager = get_file_manager()
 
 @vaulture_bp.route('/new_account', methods=['POST'])
 def vaulture_new_account():
+    filemanager = get_file_manager()
+
     if request.method == 'POST':
         try:
             vault_file = request.files.get('vault_file', False)
@@ -95,6 +96,8 @@ def vaulture_new_account():
 
 @vaulture_bp.route('/login', methods=['POST'])
 def vaulture_login():
+    filemanager = get_file_manager()
+    
     if request.method == 'POST':
         try:
             vault_account_name = request.form['vault_account_name']
@@ -136,6 +139,8 @@ def vaulture_login():
 
 @vaulture_bp.route('/update', methods=['POST'])
 def vaulture_update():
+    filemanager = get_file_manager()
+    
     if request.method == 'POST':
         try:
             vault_account_name = request.form['vault_account_name']
